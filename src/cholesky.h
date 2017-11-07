@@ -70,18 +70,48 @@ sparse_matrix sparse_cholesky_factorization(sparse_matrix& mx) {
         const bucket& column = mx.column(j);
         double sumOfColumn = 0;
         for (auto row = column.begin(); row != column.end() && row->first < j; ++row) {
-            sumOfColumn += pow(L.get( row->first,j), 2);
+            size_t i = row->first;
+            sumOfColumn += pow(L.get(i,j), 2);
+            //std::cout << "L ij hay en i=" << i << "j=" << j << " el total de: " << (L.get(i,j)) << std::endl;
         }
-        L.set(j,j, sqrt(mx.get(j,j) - sumOfColumn));
+        //std::cout << "mx jj hay en j=" << j << " el total de: " << (mx.get(j,j)) << "y en sum of column: " << sumOfColumn << std::endl;
+        if (mx.get(j,j) - sumOfColumn >= 0) {
+            //std::cout << "asigno en L" << j << j << " " << sqrt(mx.get(j,j) - sumOfColumn) << " que viene de la resta " << mx.get(j,j) - sumOfColumn << std::endl;
+            L.set(j,j, sqrt(mx.get(j,j) - sumOfColumn));
+        }
 
-        for (size_t i = j + 1; i < mx.getCols(); ++i) {
-            const bucket& anotherColumn = mx.column(i);
+        /*for (size_t i = j + 1; i < mx.getCols(); ++i) {
             double sumOfL = 0;
             for (auto row = column.begin(); row != column.end() && row->first < j; ++row) {
                 sumOfL += L.get(row->first, j) * L.get(row->first, i);
             }
+            if (L.get(j,j) == 0) std::cout << "NO PODES DIVIDIR POR 0 EN CHOLESKY FORRO" << std::endl;
+            if (mx.get(j,i) != 0) std::cout << "MX_ij = " << mx.get(j,i) << " i= " << i << " j=" << j << std::endl;
+            L.set(j, i, (1/L.get(j,j))*(mx.get(j,i) - sumOfL));
+        }*/
+        size_t i = j+1;
+        double sumOfL = 0;
+        for (auto row = column.begin(); row != column.end() && row->first < j; ++row) {
+            sumOfL += L.get(row->first, j) * L.get(row->first, i);
+        }
+        if (L.get(j,j) != 0) {
+            //if (j==1) std::cout << "en " << "i=" << i << " j=" << j << "hay: " << L.get(j,j) << ", " << mx.get(j,i) << ", " << sumOfL << std::endl;
             L.set(j, i, (1/L.get(j,j))*(mx.get(j,i) - sumOfL));
         }
+
+        i = j+340;
+        sumOfL = 0;
+        for (auto row = column.begin(); row != column.end() && row->first < j; ++row) {
+            sumOfL += L.get(row->first, j) * L.get(row->first, i);
+        }
+        if (L.get(j,j) != 0) {
+            //std::cout << "NO PODES DIVIDIR POR 0 EN CHOLESKY FORRO en la col i=" << i << " j=" << j << std::endl;
+            //std::cout << " L ji hay en i=" << i << " j=" << j << " el total de: " << (L.get(j,j)) << std::endl;
+            //std::cout << "MX ji hay en i=" << i << " j=" << j << " el total de: " << (mx.get(j,i)) << std::endl;
+            L.set(j, i, (1/L.get(j,j))*(mx.get(j,i) - sumOfL));
+        }
+
+        if (j % 10000 == 0) std::cout << "van j=" << j << "de " << mx.getCols() << std::endl;
     }
     L.transponse();
     return L;

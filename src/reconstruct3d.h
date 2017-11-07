@@ -46,13 +46,14 @@ matrix<row<double>> normalField(const matrix<double> &i1, const matrix<double> &
     for (size_t i = 0; i < height; i++) {
         row<row<double>> r;
         for (size_t j = 0; j < width; j++) {
-            if (opts.maskOptimization && (i1[i][j] == 0 && i2[i][j] == 0 && i3[i][j] == 0)) {
+            if (opts.maskOptimization || (i1[i][j] == 0 && i2[i][j] == 0 && i3[i][j] == 0)) {
                 r.push_back({0, 0, 0}); //TODO: revisen esto
             } else {
                 //(5)
                 row<double> m = Matrix::solvePLUSystem(sm.P, sm.L, sm.U, {i1[i][j], i2[i][j], i3[i][j]});
                 //(6)
                 double mNorm = Matrix::twoNorm(m);
+                //if (m[0] != 0 && m[1] != 0 && m[2] != 0 && mNorm != 0) std::cout << "no es 0 i=" << i << " j=" << j << std::endl;
                 if(mNorm != 0) {
                     m[0] /= mNorm;
                     m[1] /= mNorm;
@@ -75,30 +76,26 @@ sparse_matrix calculateM(const matrix<row<double>> &n) {
     size_t n_i = 0;
 
     // En la construccion de la M hay que salvar los bordes que no tienen posicion borde+1.
-    for (size_t y = 0; y < height - 1; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (size_t x = 0; x < width - 1; x++) {
+        for (size_t y = 0; y < height; y++) {
             M.set(n_i, n_i, -n[y][x][2]); //le pongo -nz
             M.set(n_i + 1, n_i, n[y][x][2]); //le pongo nz
             n_i++;
         }
+
     }
-    for (size_t x = 0; x < width - 1; x++) { // La ultima columna tiene todos 0s
-        M.set(n_i, n_i, -n[height - 1][x][2]); //le pongo -nz
-        M.set(n_i + 1, n_i, n[height - 1][x][2]); //le pongo nz
-        n_i++;
-    }
-    M.set(n_i, n_i, -n[height - 1][width - 1][2]); //le pongo -nz
 
     n_i = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
 
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (size_t x = 0; x < width - 1; x++) {
+        for (size_t y = 0; y < height - 1; y++) {
             M.set(n_i, n_i + n_size, -n[y][x][2]); //le pongo -nz
-            if(n_i + height < n_size) {
+            //if(n_i + height < n_size) {
                 M.set(n_i + height, n_i + n_size, n[y][x][2]); //le pongo nz
-            }
+            //}
             n_i++;
         }
+        n_i++; // Por la ultima fila que no se recorre ni se asigna nada
     }
     return M;
 }
@@ -130,8 +127,8 @@ vector<double> calculateV(const matrix<row<double>> &n) {
             v.push_back(-n[y][x][1]); //le pongo -ny
         }
     }
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
+    for (size_t x = 0; x < width; x++) {
+        for (size_t y = 0; y < height; y++) {
             v.push_back(-n[y][x][0]); //le pongo -nx
         }
     }
@@ -174,7 +171,7 @@ matrix<double> findDepth(const matrix<row<double>> &normalField) {
     std::cout << "Antes de calcular M" << std::endl;
     sparse_matrix m = calculateM(normalField);
 
-    std::cout << "Despues de calcular M y antes de V" << std::endl;
+    //std::cout << "Despues de calcular M y antes de V" << std::endl;
     vector<double> v = calculateV(normalField);
 
     std::cout << "Despues de calcular V y antes de calcular MtM" << std::endl;

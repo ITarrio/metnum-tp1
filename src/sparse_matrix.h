@@ -82,9 +82,11 @@ class sparse_matrix {
 
         sparse_matrix transposedByNotTransposedProduct() {
             sparse_matrix result(cols, cols);
+            size_t elementos_totales = 0;
             for (size_t i = 0; i < cols; ++i) {
+                size_t elementos = 0;
                 bucket& column = matrix[i];
-                for (size_t j = 0; j <= i; ++j) {
+                /*for (size_t j = 0; j <= i; ++j) {
                     bucket& another_column = matrix[j];
                     double sum = 0;
                     for (auto column_row = column.begin(); column_row != column.end(); ++column_row) {
@@ -97,8 +99,89 @@ class sparse_matrix {
                     if (i != j) {
                         result.set(j, i, sum);
                     }
+                    if (sum != 0) {
+                        elementos++;
+                        elementos_totales++;
+                    }
                 }
+                if (elementos > 3) std::cout << "total elementos > 3 en col i: " << elementos << ", " << i << std::endl;
+                */
+                if (i == 0) {
+                    size_t j = 0;
+                    bucket& another_column = matrix[j];
+                    double sum = 0;
+                    for (auto column_row = column.begin(); column_row != column.end(); ++column_row) {
+                        auto another_column_row = another_column.find(column_row->first);
+                        if(another_column_row != another_column.end()) {
+                            sum += column_row->second * another_column_row->second;
+                        }
+                    }
+                    result.set(i,j, sum);
+                    if (i != j) {
+                        result.set(j, i, sum);
+                    }
+                    if (sum != 0) {
+                        elementos++;
+                        elementos_totales++;
+                    }
+                } else if (i < 340) {
+                    size_t j1 = 0;
+                    size_t j2 = i-1;
+                    bucket& another_column1 = matrix[j1];
+                    bucket& another_column2 = matrix[j2];
+                    double sum = 0;
+                    for (auto column_row = column.begin(); column_row != column.end(); ++column_row) {
+                        auto another_column_row = another_column1.find(column_row->first);
+                        if(another_column_row != another_column1.end()) {
+                            sum += column_row->second * another_column_row->second;
+                        }
+                    }
+                    result.set(i,j1, sum);
+                    if (i != j1) {
+                        result.set(j1, i, sum);
+                    }
+                    if (sum != 0) {
+                        elementos++;
+                        elementos_totales++;
+                    }
+                    sum = 0;
+                    for (auto column_row = column.begin(); column_row != column.end(); ++column_row) {
+                        auto another_column_row = another_column2.find(column_row->first);
+                        if(another_column_row != another_column2.end()) {
+                            sum += column_row->second * another_column_row->second;
+                        }
+                    }
+                    result.set(i,j2, sum);
+                    if (i != j2) {
+                        result.set(j2, i, sum);
+                    }
+                    if (sum != 0) {
+                        elementos++;
+                        elementos_totales++;
+                    }
+                } else {
+                    for (size_t j = i-340; j <= i; ++j) {
+                        bucket& another_column = matrix[j];
+                        double sum = 0;
+                        for (auto column_row = column.begin(); column_row != column.end(); ++column_row) {
+                            auto another_column_row = another_column.find(column_row->first);
+                            if(another_column_row != another_column.end()) {
+                                sum += column_row->second * another_column_row->second;
+                            }
+                        }
+                        result.set(i,j, sum);
+                        if (i != j) {
+                            result.set(j, i, sum);
+                        }
+                        if (sum != 0) {
+                            elementos++;
+                            elementos_totales++;
+                        }
+                    }
+                }
+                if (i % 10000 == 0) std::cout << i << std::endl;
             }
+            if (elementos_totales > 0) std::cout << "total elementos en MtM" << elementos_totales << std::endl;
             return result;
         }
 
@@ -106,38 +189,41 @@ class sparse_matrix {
         // Esta funcion asume que la matriz es cuadrada y triangular inferior.
         row<double> solveCholeskySystem(row<double> b){
             // Resuelvo Lz = b
+            trans = !trans;
             size_t z_size = b.size();
             row<double> z(z_size, 0);
             for (size_t i = 0; i < cols; ++i) {
-                // TODO revisar esto, no son filas
-                bucket& row = matrix[i];
+                bucket& column = matrix[i];
                 double sumOfRowI = 0;
                 double c = 0.0;
-                for (auto row_column = row.begin(); row_column != row.end(); row_column++) {
+                for (auto row_column = column.begin(); row_column != column.end(); row_column++) {
                     double y = (row_column->second * z[row_column->first]) - c;
                     double t = sumOfRowI + y;
                     c = (t - sumOfRowI) - y;
                     sumOfRowI = t;
                 }
-                z[i] = (b[i] - sumOfRowI) / row[i];
+                if (column[i] != 0)
+                    z[i] = (b[i] - sumOfRowI) / column[i];
             }
 
             // Resuelvo L'x = z
-            trans = true;
+            trans = !trans;
             size_t x_size = z.size();
             row<double> x(x_size, 0);
 
-            for (size_t i = 1; i <= cols; ++i) {
-                bucket& row = matrix[cols - i];
+            for (size_t i = cols-1; i > 0; --i) {
+                bucket& column = matrix[i];
                 double sumOfRowI = 0;
                 double c = 0.0;
-                for (auto row_column = row.begin(); row_column != row.end(); row_column++) {
+                for (auto row_column = column.rbegin(); row_column != column.rend(); row_column++) {
                     double y = (row_column->second * z[row_column->first]) - c;
                     double t = sumOfRowI + y;
                     c = (t - sumOfRowI) - y;
                     sumOfRowI = t;
                 }
-                x[i] = (z[i] - sumOfRowI) / row[i];
+                if (column[i] != 0) {
+                    x[i] = (z[i] - sumOfRowI) / column[i];
+                }
             }
             return x;
         }
