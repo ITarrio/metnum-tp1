@@ -9,7 +9,7 @@ TEST(SparseMatrixTest, solveCholeskySystem) {
 
     for (size_t i = 0; i < 5; i++) {
         for (size_t j = 0; j <= i; ++j) {
-            L.set(i,j,1);
+            L.set(j,i,1);
         }
     }
 

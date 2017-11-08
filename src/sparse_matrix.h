@@ -189,14 +189,15 @@ class sparse_matrix {
         // Esta funcion asume que la matriz es cuadrada y triangular inferior.
         row<double> solveCholeskySystem(row<double> b){
             // Resuelvo Lz = b
+            sparse_matrix transposedLower = fullTranspose();
             size_t z_size = b.size();
             row<double> z(z_size, 0);
             for (size_t i = 0; i < cols; ++i) {
-                bucket& column = matrix[i];
+                bucket& column = transposedLower.matrix[i];
                 double sumOfRowI = 0;
                 double c = 0.0;
                 for (auto row_column = column.begin(); row_column != column.end() && row_column->first <= i; row_column++) {
-                    double y = (get(i,row_column->first) * z[row_column->first]) - c;
+                    double y = (row_column->second * z[row_column->first]) - c;
                     double t = sumOfRowI + y;
                     c = (t - sumOfRowI) - y;
                     sumOfRowI = t;
@@ -205,28 +206,25 @@ class sparse_matrix {
                     z[i] = (b[i] - sumOfRowI) / get(i,i);
                 }
             }
-
             // Resuelvo L'x = z
 
             size_t x_size = z.size();
             row<double> x(x_size, 0);
 
-            trans = !trans;
-            for (size_t i = cols-1; i > 0; --i) {
-                bucket& column = matrix[i];
+            for (size_t i = 0; i < cols; ++i) {
+                bucket& column = matrix[cols-1-i];
                 double sumOfRowI = 0;
                 double c = 0.0;
-                for (size_t j = cols-1; j >= i; j--) {
-                    double y = (get(i,j) * x[j]) - c;
+                for (auto row_column = column.rbegin(); row_column != column.rend(); row_column++) {
+                    double y = (row_column->second * x[row_column->first]) - c;
                     double t = sumOfRowI + y;
                     c = (t - sumOfRowI) - y;
                     sumOfRowI = t;
                 }
-                if (get(i,i) != 0) {
-                    x[i] = (z[i] - sumOfRowI) / get(i,i);
+                if (get(cols-1-i,cols-1-i) != 0) {
+                    x[cols-1-i] = (z[cols-1-i] - sumOfRowI) / get(cols-1-i,cols-1-i);
                 }
             }
-            trans = !trans;
             return x;
         }
 
@@ -234,11 +232,23 @@ class sparse_matrix {
             return matrix[col];
         }
 
+        sparse_matrix fullTranspose() {
+            sparse_matrix transposedMatrix(cols,rows);
+            for (int i = 0; i < cols; ++i) {
+                bucket& column = matrix[i];
+                for (auto columnIt = column.begin(); columnIt != column.end() ; columnIt++) {
+                    transposedMatrix.set(columnIt->first, i, columnIt->second);
+                }
+            }
+            return transposedMatrix;
+        }
+
 private:
-        bool trans;
-        size_t rows;
-        size_t cols;
-        vector<bucket> matrix;
+    bool trans;
+    size_t rows;
+    size_t cols;
+
+    vector<bucket> matrix;
 };
 
 
