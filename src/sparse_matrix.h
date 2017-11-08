@@ -202,8 +202,9 @@ class sparse_matrix {
                     c = (t - sumOfRowI) - y;
                     sumOfRowI = t;
                 }
-                if (column[i] != 0)
+                if (column[i] != 0) {
                     z[i] = (b[i] - sumOfRowI) / column[i];
+                }
             }
 
             // Resuelvo L'x = z

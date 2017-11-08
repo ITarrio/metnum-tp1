@@ -76,26 +76,26 @@ sparse_matrix calculateM(const matrix<row<double>> &n) {
     size_t n_i = 0;
 
     // En la construccion de la M hay que salvar los bordes que no tienen posicion borde+1.
-    for (size_t x = 0; x < width - 1; x++) {
-        for (size_t y = 0; y < height; y++) {
+    for (size_t x = 0; x < width; x++) {
+        for (size_t y = 0; y < height - 1; y++) {
             M.set(n_i, n_i, -n[y][x][2]); //le pongo -nz
             M.set(n_i + 1, n_i, n[y][x][2]); //le pongo nz
             n_i++;
         }
-
+        n_i++;
     }
+
 
     n_i = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
 
     for (size_t x = 0; x < width - 1; x++) {
-        for (size_t y = 0; y < height - 1; y++) {
+        for (size_t y = 0; y < height; y++) {
             M.set(n_i, n_i + n_size, -n[y][x][2]); //le pongo -nz
             //if(n_i + height < n_size) {
-                M.set(n_i + height, n_i + n_size, n[y][x][2]); //le pongo nz
+            M.set(n_i + height, n_i + n_size, n[y][x][2]); //le pongo nz
             //}
             n_i++;
         }
-        n_i++; // Por la ultima fila que no se recorre ni se asigna nada
     }
     return M;
 }
@@ -133,27 +133,6 @@ vector<double> calculateV(const matrix<row<double>> &n) {
         }
     }
     return v;
-}
-
-void transposedSparseMatrixProduct(sparse_matrix &mtm, sparse_matrix &m, size_t height) {
-    size_t cols = m.getCols(); // cols == n
-
-    double first_upper_main_diag = m.get(0, 0);
-    double first_lower_main_diag = m.get(cols, 0);
-    double first_pos_i_i = first_upper_main_diag*first_upper_main_diag + first_lower_main_diag*first_lower_main_diag;
-    mtm.set(0,0,first_pos_i_i);
-
-    for (size_t i = 1; i < cols; ++i) {
-        double first_element_of_actual = m.get(i-1, i);
-        double second_element_of_actual = m.get(i, i);
-        double third_element_of_actual = m.get(i+height, i);
-        double pos_i_i = first_element_of_actual*first_element_of_actual + second_element_of_actual*second_element_of_actual + third_element_of_actual*third_element_of_actual;
-        double pos_i_i_minus_1 = first_element_of_actual * m.get(i-1, i-1);
-        mtm.set(i,i, pos_i_i);
-        mtm.set(i,  i-1, pos_i_i_minus_1);
-        mtm.set(i-1,i,   pos_i_i_minus_1);
-        //No se necesita calcular nada más porque va a dar siempre 0 salvo los escritos acá
-    }
 }
 
 matrix<double> solutionToMatrix(row<double> &z, size_t height, size_t width) {
