@@ -15,9 +15,8 @@ typedef std::map<size_t, double> bucket;
 class sparse_matrix {
 
     public:
-        sparse_matrix(size_t rows, size_t cols) : rows(rows), cols(cols), matrix(cols) {
-            trans = false;
-        }
+        sparse_matrix(size_t rows, size_t cols)
+                :  trans(false), rows(rows), cols(cols), matrix(cols) {}
 
         size_t getRows() const {
             return (trans) ? cols : rows;
@@ -151,7 +150,7 @@ class sparse_matrix {
 
         sparse_matrix fullTranspose() {
             sparse_matrix transposedMatrix(cols,rows);
-            for (int i = 0; i < cols; ++i) {
+            for (size_t i = 0; i < cols; ++i) {
                 bucket& column = matrix[i];
                 for (auto columnIt = column.begin(); columnIt != column.end() ; columnIt++) {
                     transposedMatrix.set(columnIt->first, i, columnIt->second);

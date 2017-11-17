@@ -74,12 +74,18 @@ int main(int argc, char** argv) {
     std::vector<std::string> referenceFiles = getFileNames(referenceName, referenceMaskName);
     matrix<double> referenceMask = Utils::loadGrayImage(referenceMaskName);
     vector<matrix<double>> references = loadGrayImages(referenceFiles);
+    for (matrix<double> ref : references) {
+        ref = Mask::apply_mask(ref, referenceMask);
+    }
     vector<direction> calibrations = Calibration::calibrate(references, referenceMask);
     //----LOADING
     std::string figureMaskName;
     std::vector<std::string> figureFiles = getFileNames(figureName, figureMaskName);
     matrix<double> mask = Utils::loadGrayImage(figureMaskName);
     vector<matrix<double>> imgs = loadGrayImages(figureFiles);
+    for (matrix<double> img : references) {
+        img = Mask::apply_mask(img, mask);
+    }
     //----NORMAL-FIELD
     // TODO: CHOOSE THE BEST 3
     std::string outputName = getOutputName(figureName);
@@ -91,7 +97,7 @@ int main(int argc, char** argv) {
 #endif
     //----DEPTH
     matrix<double> depth = findDepth(normal);
-    Utils::saveMatrixFile(depth, outputName + ".depth.csv");
+    //Utils::saveMatrixFile(depth, outputName + ".depth.csv");
     //----END
     return 0;
 }

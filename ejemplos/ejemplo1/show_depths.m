@@ -1,7 +1,7 @@
-function show_depths()
+function show_depths(fname)
 
 %% 
-fname = 'buda.depths.dat';
+%fname = 'buda.depths.dat';
 
 Z2 = read_depths(fname);
 

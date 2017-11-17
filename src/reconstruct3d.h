@@ -14,7 +14,9 @@ struct options {
 };
 
 struct resizedSparseMatrix {
-    resizedSparseMatrix(sparse_matrix m, row<size_t> rowsOfZeros) : matrix(m), rowsOfZeros(rowsOfZeros) {}
+    resizedSparseMatrix(size_t rows, size_t cols,
+                        const row<size_t>& rowsOfZeros)
+            : matrix(rows, cols), rowsOfZeros(rowsOfZeros) {}
     sparse_matrix matrix;
     row<size_t> rowsOfZeros;
 };
@@ -73,67 +75,120 @@ matrix<row<double>> normalField(const matrix<double> &i1, const matrix<double> &
     return normal;
 }
 
+sparse_matrix calculate_m_with_ones(const matrix<row<double>> &n) {
+    size_t height = n.size();
+    size_t width = n[0].size();
+    size_t n_size = height * width;
+    sparse_matrix M(2*n_size, n_size);
+
+    size_t n_i = 0;
+    // Parte superior: semi-banda, se inserta en la diagonal
+    // y en la adyacente a la derecha
+    for (size_t x = 0; x < width; x++) {
+        for (size_t y = 0; y < height; y++) {
+            double val = n[y][x][2];
+            if(std::abs(val) <= 0.01) {
+                val = 1/std::sqrt(3);
+            }
+            M.set(n_i, n_i, -val); //le pongo -nz
+            if(n_i + 1 < n_size)
+                M.set(n_i + 1, n_i, val); //le pongo nz
+            n_i++;
+        }
+    }
+
+    size_t otroN_i = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
+
+    // Parte inferior: diagonales separadas por height
+    for (size_t x = 0; x < width; x++) {
+        for (size_t y = 0; y < height; y++) {
+            double val = n[y][x][2];
+            if(std::abs(val) <= 0.01) {
+                val = 1/std::sqrt(3);
+            }
+            M.set(otroN_i, n_i, -val); //le pongo -nz
+            if(otroN_i + height < n_size)
+                M.set(otroN_i + height, n_i, val); //le pongo nz
+            n_i++;
+            otroN_i++;
+        }
+    }
+    return M;
+}
+
 resizedSparseMatrix calculateM(const matrix<row<double>> &n) {
     size_t height = n.size();
     size_t width = n[0].size();
-    size_t n_size = width * height;
-    sparse_matrix M(2*n_size, n_size);
-    size_t n_i = 0;
     row<size_t> rowsWithZeros(0);
     size_t actualRow = 0;
 
-    // En la construccion de la M hay que salvar los bordes que no tienen posicion borde+1.
-    for (size_t x = 0; x < width; x++) {
+    // PRE-CONSTRUCCION
+    // Queremos saber que/cuantas filas tienen 0s
+    // asi creamos la matriz con el tamaño y la forma correcta
+    for (size_t x = 0; x < width - 1; x++) {
         for (size_t y = 0; y < height - 1; y++) {
-            if (n[y][x][2] > 0.00001 || n[y][x][2] < -0.00001) {
-                M.set(n_i, n_i, -n[y][x][2]); //le pongo -nz
-                M.set(n_i + 1, n_i, n[y][x][2]); //le pongo nz
-                n_i++;
-                actualRow++;
-            } else {
+            if (std::abs(n[y][x][2]) <= 0.01) {
                 rowsWithZeros.push_back(actualRow);
-                actualRow++;
             }
+            actualRow++;
         }
+        // Agregamos la ultima fila de 0s
+        rowsWithZeros.push_back(actualRow);
+        actualRow++;
+    }
+    for (size_t y = 0; y < height; y++) {
+        // Agregamos la ultima columna de 0s
         rowsWithZeros.push_back(actualRow);
         actualRow++;
     }
 
-    size_t otroN_i = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
-    actualRow = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
+    // CONSTRUCCION
 
+    // necesitamos un height extra para la diagonal de la parte inferior
+    size_t n_size = (width * height) - rowsWithZeros.size();
+
+    resizedSparseMatrix result(2*n_size, n_size, rowsWithZeros);
+    sparse_matrix& M = result.matrix;
+
+    size_t n_i = 0;
+
+    // Parte superior: semi-banda, se inserta en la diagonal
+    // y en la adyacente a la derecha
     for (size_t x = 0; x < width - 1; x++) {
-        for (size_t y = 0; y < height; y++) {
-            if (n[y][x][2] > 0.00001 || n[y][x][2] < -0.00001) {
-                M.set(otroN_i, n_i, -n[y][x][2]); //le pongo -nz
-                M.set(otroN_i + height, n_i, n[y][x][2]); //le pongo nz
+        for (size_t y = 0; y < height - 1; y++) {
+            if (std::abs(n[y][x][2]) > 0.01) {
+                M.set(n_i, n_i, -n[y][x][2]); //le pongo -nz
+                if(n_i + 1 < n_size)
+                M.set(n_i + 1, n_i, n[y][x][2]); //le pongo nz
                 n_i++;
-                otroN_i++;
-                actualRow++;
-            } else {
-                rowsWithZeros.push_back(actualRow + n_size);
-                actualRow++;
             }
         }
     }
-    for (size_t y = 0; y < height; y++) {
-        // Agregamos la ultima columna de 0s
-        rowsWithZeros.push_back(actualRow + n_size);
-        actualRow++;
-    }
-    resizedSparseMatrix result(M, rowsWithZeros);
 
+    size_t otroN_i = 0; // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
+
+    // Parte inferior: diagonales separadas por height
+    for (size_t x = 0; x < width - 1; x++) {
+        for (size_t y = 0; y < height - 1; y++) {
+            if (std::abs(n[y][x][2]) > 0.01) {
+                M.set(otroN_i, n_i, -n[y][x][2]); //le pongo -nz
+                if(otroN_i + height < n_size)
+                M.set(otroN_i + height, n_i, n[y][x][2]); //le pongo nz
+                n_i++;
+                otroN_i++;
+            }
+        }
+    }
     return result;
 }
 
-vector<double> calculateV(const matrix<row<double>> &n, const row<size_t> &rowsOfZeros) {
+vector<double> calculate_v(const matrix<row<double>> &n) {
     size_t height = n.size(), width = n[0].size();
-    auto rowsOfZerosIt = rowsOfZeros.begin();
     vector<double> v;
     for (size_t x = 0; x < width; x++) {
         for (size_t y = 0; y < height; y++) {
-            if (v.size()+1 == *rowsOfZerosIt || v.size() == *rowsOfZerosIt) { // Este or es para el 0,0
-                rowsOfZerosIt++;
+            if (std::abs(n[y][x][1]) <= 0.01) {
+                v.push_back(-1/std::sqrt(3)); //le pongo -ny
             } else {
                 v.push_back(-n[y][x][1]); //le pongo -ny
             }
@@ -141,12 +196,41 @@ vector<double> calculateV(const matrix<row<double>> &n, const row<size_t> &rowsO
     }
     for (size_t y = 0; y < height; y++) {
         for (size_t x = 0; x < width; x++) {
-            if (v.size()+1 == *rowsOfZerosIt) {
+            if (std::abs(n[y][x][0]) <= 0.01) {
+                v.push_back(-1/std::sqrt(3)); //le pongo -ny
+            } else {
+                v.push_back(-n[y][x][0]); //le pongo -ny
+            }
+        }
+    }
+    return v;
+}
+
+vector<double> calculateV(const matrix<row<double>> &n, const row<size_t> &rowsOfZeros) {
+    size_t height = n.size(), width = n[0].size();
+    auto rowsOfZerosIt = rowsOfZeros.begin();
+    vector<double> v;
+    size_t actual_size = 0;
+    for (size_t x = 0; x < width; x++) {
+        for (size_t y = 0; y < height; y++) {
+            if (actual_size == *rowsOfZerosIt) { // Este or es para el 0,0
+                rowsOfZerosIt++;
+            } else {
+                v.push_back(-n[y][x][1]); //le pongo -ny
+            }
+            ++actual_size;
+        }
+    }
+    actual_size = 0;
+    rowsOfZerosIt = rowsOfZeros.begin();
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < width; x++) {
+            if (actual_size == *rowsOfZerosIt) {
                 rowsOfZerosIt++;
             } else {
                 v.push_back(-n[y][x][0]); //le pongo -nx
-
             }
+            ++actual_size;
         }
     }
     return v;
@@ -176,19 +260,59 @@ matrix<double> solutionToMatrix(row<double> &z, size_t height, size_t width) {
     }
     return result;
 }
+void saveForMatlabShit(const sparse_matrix& m, const vector<double>& v) {
+    std::ofstream mf("m.csv");
+    size_t w = m.getCols();
+    size_t h = m.getRows();
+    for (size_t i = 0; i < h; ++i) {
+        for (size_t j = 0; j < w - 1; ++j) {
+            mf << m.get(j, i) << ',';
+        }
+        mf << m.get(w - 1, i) << endl;
+    }
+    std::ofstream vf("v.csv");
+    for (double n : v) {
+        vf << n << std::endl;
+    }
+}
+
+void saveForMatlabShit(const resizedSparseMatrix& mAndZeros, const vector<double>& v) {
+    std::ofstream mf("m.csv");
+    size_t w = mAndZeros.matrix.getCols();
+    size_t h = mAndZeros.matrix.getRows();
+    for (size_t i = 0; i < h; ++i) {
+        for (size_t j = 0; j < w - 1; ++j) {
+            mf << mAndZeros.matrix.get(j, i) << ',';
+        }
+        mf << mAndZeros.matrix.get(w - 1, i) << endl;
+    }
+    std::ofstream zf("zeros.csv");
+    for (size_t n : mAndZeros.rowsOfZeros) {
+        zf << n << std::endl;
+    }
+    std::ofstream vf("v.csv");
+    for (double n : v) {
+        vf << n << std::endl;
+    }
+}
 
 //Aqui viene lo bueno jovenes, I cho cho choleskyou
 matrix<double> findDepth(const matrix<row<double>> &normalField) {
     std::cout << "Antes de calcular M" << std::endl;
-    resizedSparseMatrix mAndVectorOfRowsOfZeros = calculateM(normalField);
-    sparse_matrix m = mAndVectorOfRowsOfZeros.matrix;
+    sparse_matrix m = calculate_m_with_ones(normalField);
 
     std::cout << "Despues de calcular M y antes de V" << std::endl;
-    vector<double> v = calculateV(normalField, mAndVectorOfRowsOfZeros.rowsOfZeros);
+    vector<double> v = calculate_v(normalField);
 
+    // MATRIIIIIIIIIIIZ! LACONCHADETUMADRE ANDAAAAAAAAAAAAS?
+    saveForMatlabShit(m, v);
+
+    return matrix<double>();
+/*
     std::cout << "Despues de calcular V y antes de calcular MtM" << std::endl;
     // Calcular Mtraspuesta*M : Step 14a
     sparse_matrix mtm = m.transposedByNotTransposedProduct();
+    matrix<double> d = solutionToMatrix(zWithZeros, height, width);
 
     std::cout << "Despues de calcular MtM y antes de calcular Mtv" << std::endl;
     // Calcular Mtraspuesta*V : Step 14b
@@ -211,7 +335,7 @@ matrix<double> findDepth(const matrix<row<double>> &normalField) {
     matrix<double> d = solutionToMatrix(zWithZeros, height, width);
 
     std::cout << "Despues de transformar vector a matriz" << std::endl;
-    return d;
+    return d;*/
 }
 
 #endif //METNUM_TP1_RECONSTRUCT3D_H

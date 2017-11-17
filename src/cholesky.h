@@ -75,7 +75,6 @@ sparse_matrix sparse_cholesky_factorization(sparse_matrix& mx) {
         L.set(j,j, sqrt(mx.get(j,j) - sumOfColumn));
 
         for (size_t i = j + 1; i < mx.getCols(); ++i) {
-            const bucket& anotherColumn = mx.column(i);
             double sumOfL = 0;
             for (auto row = column.begin(); row != column.end() && row->first < j; ++row) {
                 sumOfL += L.get(row->first, j) * L.get(row->first, i);
