@@ -1,7 +1,9 @@
 function solve_pija(M, v, zer)
 
-Z = linsolve(M'*M, M'*v);
-Z = Z';
+%Z = linsolve(M'*M, M'*v);
+%Z = Z';
+Ms = sparse(M);
+Z = Ms \ v;
 
 % INSERTAR ZEROS
 for i = 1:length(zer)
@@ -13,7 +15,11 @@ for i = 1:length(zer)
 	end
 end
 
-sol = vec2mat(Z, 66)';
+%sol = vec2mat(Z, 66)';
+
+sol = reshape(Z,100,66);
+
+size(sol)
 
 [height,width] = size(sol)
 pause
