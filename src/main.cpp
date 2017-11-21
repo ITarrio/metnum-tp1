@@ -5,8 +5,6 @@
 
 #define SAVE_NORMAL true
 
-#define DEFAULT_OPTS options(false)
-
 std::vector<matrix<double>> loadGrayImages(const std::vector<std::string>& files) {
     std::vector<matrix<double>> res;
     for (auto it = files.begin(); it != files.end(); ++it) {
@@ -85,21 +83,22 @@ int main(int argc, char** argv) {
     vector<matrix<double>> imgs = loadGrayImages(figureFiles);
     for(auto& img : imgs) {
         img = Mask::apply_mask(img, msk);
+        img = Mask::apply_clip(img, msk);
     }
     //----NORMAL-FIELD
     // TODO: CHOOSE THE BEST 3
     std::string outputName = getOutputName(figureName);
     matrix<row<double>> normal = normalField(
             imgs[0], imgs[1], imgs[2],
-            calibrations[0], calibrations[1], calibrations[2], DEFAULT_OPTS);
+            calibrations[0], calibrations[1], calibrations[2]);
 #if SAVE_NORMAL
         Utils::saveMatrix3dFiles(normal, outputName);
 #endif
     //----DEPTH
-    /*
     matrix<double> depth = findDepth(normal);
+    depth = Mask::restore_clip(depth, msk);
+    depth = Mask::apply_mask(depth, msk);
     Utils::saveMatrixFile(depth, outputName + ".depth.csv");
-     */
     //----END
     return 0;
 }

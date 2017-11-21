@@ -1,24 +1,12 @@
 #ifndef METNUM_TP1_RECONSTRUCT3D_H
 #define METNUM_TP1_RECONSTRUCT3D_H
 
-
 #include "matrix.h"
 #include "plu.h"
 #include "cholesky.h"
 #include "calibration.h"
 #include "sparse_matrix.h"
 #include <cmath>
-
-struct options {
-    options(bool maskOptimization) : maskOptimization(maskOptimization) {}
-    bool maskOptimization;
-};
-
-struct sparseMatrixVAndValidPixels{
-    sparse_matrix matrix;
-    row<double> v;
-    row<size_t> validPixels;
-};
 
 matrix<double> sourceOfLightMatrix(const direction &s1, const direction &s2, const direction &s3) {
     return {
@@ -27,6 +15,7 @@ matrix<double> sourceOfLightMatrix(const direction &s1, const direction &s2, con
             {s3.x, s3.y, s3.z}
     };
 }
+
 /**
  * (5):
  * for each pixel
@@ -45,7 +34,7 @@ matrix<double> sourceOfLightMatrix(const direction &s1, const direction &s2, con
  * @return the normal field of the image
  */
 matrix<row<double>> normalField(const matrix<double> &i1, const matrix<double> &i2, const matrix<double> &i3,
-                                const direction &s1, const direction &s2, const direction &s3, options opts) {
+                                const direction &s1, const direction &s2, const direction &s3) {
     size_t height = i1.size(), width = i1[0].size();
     PLUMatrix<double> sm = pluFactorization(sourceOfLightMatrix(s1, s2, s3));
     matrix<row<double>> normal;
@@ -53,118 +42,81 @@ matrix<row<double>> normalField(const matrix<double> &i1, const matrix<double> &
     for (size_t i = 0; i < height; i++) {
         row<row<double>> r;
         for (size_t j = 0; j < width; j++) {
-            if (opts.maskOptimization && (i1[i][j] == 0 && i2[i][j] == 0 && i3[i][j] == 0)) {
-                r.push_back({0, 0, 0}); //TODO: revisen esto
+            //(5)
+            row<double> m = Matrix::solvePLUSystem(sm.P, sm.L, sm.U, {i1[i][j], i2[i][j], i3[i][j]});
+            //(6)
+            double mNorm = Matrix::twoNorm(m);
+            if(mNorm != 0) {
+                m[0] /= mNorm;
+                m[1] /= mNorm;
+                m[2] /= mNorm;
             } else {
-                //(5)
-                row<double> m = Matrix::solvePLUSystem(sm.P, sm.L, sm.U, {i1[i][j], i2[i][j], i3[i][j]});
-                //(6)
-                double mNorm = Matrix::twoNorm(m);
-                if(mNorm != 0) {
-                    m[0] /= mNorm;
-                    m[1] /= mNorm;
-                    m[2] /= mNorm;
-                }
-                r.push_back(m);
+                m = {1/sqrt(3),1/sqrt(3),1/sqrt(3)};
             }
+            r.push_back(m);
         }
         normal.push_back(r);
     }
-
     return normal;
 }
 
-sparseMatrixVAndValidPixels calculateM(const matrix<row<double>> &n) {
+sparse_matrix calculateM(const matrix<row<double>> &n) {
     size_t height = n.size();
     size_t width = n[0].size();
-    size_t n_size = width * height;
-    sparse_matrix M(2*n_size, n_size);
-    size_t n_i = 0;
-    size_t column_number = 0;
-    vector<double> v;
+    size_t N = height * width;
 
-    row<size_t> validPixels(0);
+    sparse_matrix M(2 * N, N);
 
-    // En la construccion de la M hay que salvar los bordes que no tienen posicion borde+1.
-    for (size_t x = 0; x < width; x++) {
-        for (size_t y = 0; y < height - 1; y++) {
-            if (std::abs(n[y][x][2]) > 0.001) {
-                M.set(column_number, n_i, -n[y][x][2]); //le pongo -nz
-                M.set(column_number + 1, n_i, n[y][x][2]); //le pongo nz
-                v.push_back(-n[y][x][1]); //le pongo -ny
-                validPixels.push_back(column_number);
-                n_i++;
+    for (size_t i = 0; i < height; i++) {
+        for (size_t j = 0; j < width; j++) {
+            size_t m_x_row = (j * height) + i;
+            size_t m_y_row = m_x_row + N;
+
+            M.set(m_x_row, m_x_row, -n[i][j][2]);
+            M.set(m_x_row, m_y_row, -n[i][j][2]);
+
+            if (i == height - 1) {
+                M.set(m_x_row - 1, m_x_row, n[i][j][2]);
+            } else {
+                M.set(m_x_row + 1, m_x_row, -n[i][j][2]);
             }
-            column_number++;
-        }
-    }
 
-
-    column_number = 0;  // arrancamos de nuevo de la columa 0, pero usamos un offset de filas
-
-    for (size_t x = 0; x < width - 1; x++) {
-        for (size_t y = 0; y < height; y++) {
-            if (std::abs(n[y][x][2]) > 0.001) {
-                M.set(column_number, n_i, -n[y][x][2]); //le pongo -nz
-                M.set(column_number + height, n_i, n[y][x][2]); //le pongo nz
-                v.push_back(-n[y][x][0]); //le pongo -nx
-                n_i++;
+            if (j == width - 1) {
+                M.set(m_x_row - height, m_y_row, n[i][j][2]);
+            } else {
+                M.set(m_x_row + height, m_y_row, -n[i][j][2]);
             }
-            column_number++;
         }
+
     }
-
-    M.resizeHeight(n_i);
-
-    for (size_t pixel_number = 0; pixel_number < M.getCols(); ++pixel_number) {
-        auto & colI = M.column(pixel_number);
-        if (colI.empty()) {
-            M.removeColumn(pixel_number);
-        }
-    }
-
-    return {M,v,validPixels};
+    return M;
 }
 
-vector<double> calculateV(const matrix<row<double>> &n, const row<size_t> &rowsOfZeros) {
-    size_t height = n.size(), width = n[0].size();
-    auto rowsOfZerosIt = rowsOfZeros.begin();
-    vector<double> v;
-    for (size_t x = 0; x < width; x++) {
-        for (size_t y = 0; y < height; y++) {
-            if (v.size()+1 == *rowsOfZerosIt || v.size() == *rowsOfZerosIt) { // Este or es para el 0,0
-                rowsOfZerosIt++;
-            } else {
-                v.push_back(-n[y][x][1]); //le pongo -ny
-            }
-        }
-    }
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < width; x++) {
-            if (v.size()+1 == *rowsOfZerosIt) {
-                rowsOfZerosIt++;
-            } else {
-                v.push_back(-n[y][x][0]); //le pongo -nx
+vector<double> calculateV(const matrix<row<double>> &n) {
+    size_t height = n.size();
+    size_t width = n[0].size();
+    size_t N = height * width;
+    vector<double> v(2 * N, 0);
 
+    for (size_t i = 0; i < height; i++) {
+        for (size_t j = 0; j < width; j++) {
+            size_t m_x_row = (j * height) + i;
+            size_t m_y_row = m_x_row + N;
+            if (i == height - 1) {
+                v[m_x_row] = n[i][j][0];
+            } else {
+                v[m_x_row] = -n[i][j][0];
+            }
+
+            if (j == width - 1) {
+                v[m_y_row] = n[i][j][1];
+            } else {
+                v[m_y_row] = -n[i][j][1];
             }
         }
     }
+
     return v;
-}
-
-row<double> addZeros(row<double> &z, row<size_t> &rowsWithZeros) {
-    row<double> result(z.size() + rowsWithZeros.size(), 0);
-    auto rowsWithZerosIt = rowsWithZeros.begin();
-    auto zIt = z.begin();
-    for (size_t i = 0; i < result.size(); ++i) {
-        if (*rowsWithZerosIt != i) {
-            result[i] = *zIt;
-            zIt++;
-        } else {
-            rowsWithZerosIt++;
-        };
-    }
-    return result;
 }
 
 matrix<double> solutionToMatrix(row<double> &z, size_t height, size_t width) {
@@ -180,18 +132,18 @@ matrix<double> solutionToMatrix(row<double> &z, size_t height, size_t width) {
 //Aqui viene lo bueno jovenes, I cho cho choleskyou
 matrix<double> findDepth(const matrix<row<double>> &normalField) {
     std::cout << "Antes de calcular M" << std::endl;
-    sparseMatrixVAndValidPixels mAndVectorOfRowsOfZeros = calculateM(normalField);
+    sparse_matrix M = calculateM(normalField);
 
     //std::cout << "Despues de calcular M y antes de V" << std::endl;
-    //vector<double> v = calculateV(normalField, mAndVectorOfRowsOfZeros.rowsOfZeros);
+    vector<double> v = calculateV(normalField);
 
     std::cout << "Despues de calcular V y antes de calcular MtM" << std::endl;
     // Calcular Mtraspuesta*M : Step 14a
-    sparse_matrix mtm = mAndVectorOfRowsOfZeros.matrix.transposedByNotTransposedProduct();
+    sparse_matrix mtm = M.transposedByNotTransposedProduct();
 
     std::cout << "Despues de calcular MtM y antes de calcular Mtv" << std::endl;
     // Calcular Mtraspuesta*V : Step 14b
-    row<double> b = mAndVectorOfRowsOfZeros.matrix.transposedProductWithVector(mAndVectorOfRowsOfZeros.v);
+    row<double> b = M.transposedProductWithVector(v);
 
     std::cout << "Despues de calcular Mtv" << std::endl;
     // Choleskiar Az=b : Step 15
@@ -206,8 +158,7 @@ matrix<double> findDepth(const matrix<row<double>> &normalField) {
     // z tiene forma (z11,z12,...,z1h,z21,z22,...,z2h,z31,...,zwh)
     size_t height = normalField.size();
     size_t width = normalField[0].size();
-    row<double> zWithZeros = addZeros(z, mAndVectorOfRowsOfZeros.validPixels);
-    matrix<double> d = solutionToMatrix(zWithZeros, height, width);
+    matrix<double> d = solutionToMatrix(z, height, width);
 
     std::cout << "Despues de transformar vector a matriz" << std::endl;
     return d;

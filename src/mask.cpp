@@ -27,7 +27,7 @@ namespace Mask {
                     if(clip.top > i) {
                         clip.top = i;
                     }
-                    if(clip.bottom > i) {
+                    if(clip.bottom < i) {
                         clip.bottom = i;
                     }
                 }

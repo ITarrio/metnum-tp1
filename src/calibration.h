@@ -43,14 +43,14 @@ namespace Calibration {
         circle circ = {xCenter, yCenter, radius};
 
         vector<direction> directions;
-        int width = Matrix::columns(imgs[0]);
-        int height = Matrix::rows(imgs[0]);
+        size_t width = Matrix::columns(imgs[0]);
+        size_t height = Matrix::rows(imgs[0]);
         for (size_t k = 0; k < imgs.size(); k++) {
             double x(0);
             double y(0);
             double intensity(0);
-            for (int i = 0; i < height; i++) {
-                for (int j = 0; j < width; j++) {
+            for (size_t i = 0; i < height; i++) {
+                for (size_t j = 0; j < width; j++) {
                     if (imgs[k][i][j] > intensity) {
                         intensity = imgs[k][i][j];
                         x = j;

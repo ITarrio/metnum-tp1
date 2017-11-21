@@ -39,18 +39,18 @@ namespace Mask {
     }
 
     template<typename T>
-    matrix<T> restore_clip(const matrix<T>& mx, const mask& msk) {
+    matrix<T> restore_clip(const matrix<T>& mx, const mask& msk, const T& def = 0) {
         const rect& clip = msk.clip;
         size_t height = msk.img.size();
         size_t width = msk.img[0].size();
-        matrix<T> res(clip.top, row<T>(width, 0));
+        matrix<T> res(clip.top, row<T>(width, def));
         for (const row<T>& r : mx) {
             row<T> new_r(clip.left);
             new_r.insert(new_r.end(), r.begin(), r.end());
-            new_r.resize(width, 0);
+            new_r.resize(width, def);
             res.push_back(new_r);
         }
-        res.resize(height, row<T>(width, 0));
+        res.resize(height, row<T>(width, def));
         return res;
     }
 
